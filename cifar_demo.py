@@ -1,8 +1,8 @@
 # Code based on official pytorch tutorial:
 # https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
 # https://github.com/pytorch/tutorials/blob/master/beginner_source/blitz/cifar10_tutorial.py
-from collections import defaultdict
 
+import numpy as np
 import torch
 import torchvision.transforms as transforms
 from torch.nn import CrossEntropyLoss
@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 
 from network import CNN
-from utils.plotting import plot_dataset_sample
+from utils.plotting import plot_confusion_matrix, plot_dataset_sample, plot_train_progress
 
 # Meta parameters
 BATCH_SIZE = 4  # Number of image sent to the network input for each inference
@@ -43,17 +43,18 @@ def get_datasets():
 
 def train(network, train_loader):
     """ Train a neural network with a dataset """
-    print(f'\nTraining started on {len(train_loader)} images during {NB_EPOCH} epochs ...')
+    print(f'\nTraining started on {len(train_loader) * BATCH_SIZE} images during {NB_EPOCH} epochs ...')
 
     # Method to compute the loss
     criterion = CrossEntropyLoss()
     # Gradient descent configuration
     optimizer = SGD(network.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM)
 
+    loss_evolution = []
+    i = 1
     # Loop over the dataset multiple times
     for epoch in range(NB_EPOCH):
-        running_loss = 0
-        for i, data in enumerate(train_loader):
+        for data in train_loader:
             # Get the inputs; data is a list of (inputs, labels)
             inputs, labels = data
 
@@ -62,19 +63,23 @@ def train(network, train_loader):
 
             # Forward (Inference)
             outputs = network(inputs)
+            # Compute loss
             loss = criterion(outputs, labels)
+            loss_evolution.append(loss.item())
             # Backward
             loss.backward()
-            # Optimize
+            # Gradient descent step
             optimizer.step()
 
             # Print statistics every 2000 mini-batches
-            running_loss += loss.item()
-            if i % 2000 == 1999:
-                progress = (epoch * len(train_loader) + i) / (NB_EPOCH * len(train_loader))
-                print(f'{progress:6.2%} | Epoch {epoch + 1} - Batch {i + 1:5d} - Loss: {running_loss / 2000:.3f}')
-                running_loss = 0
+            if i % 2000 == 0:
+                progress = i / (NB_EPOCH * len(train_loader))
+                print(f'{progress:6.2%} | Epoch {epoch + 1:2d} | Batch {i + 1:5d} |'
+                      f' Loss: {np.mean(loss_evolution[(i - 2000): i]):.6f}')
+            i += 1
 
+    # Plot the loss evolution
+    plot_train_progress(loss_evolution, BATCH_SIZE, batch_per_epoch=len(train_loader))
     print('Training completed\n')
 
 
@@ -82,8 +87,7 @@ def test(network, test_loader):
     """ Test a neural network with a dataset """
     correct = 0
     total = 0
-    correct_pred = defaultdict(int)  # Dictionary with value 0 by default
-    total_pred = defaultdict(int)
+    nb_labels_predictions = np.zeros((len(CLASSES), len(CLASSES)), dtype=int)
 
     # Disable some network features for testing (eg. dropout)
     network.eval()
@@ -104,16 +108,13 @@ def test(network, test_loader):
             correct += (predictions == labels).sum().item()
             # Collect the correct predictions for each class
             for label, prediction in zip(labels, predictions):
-                if label == prediction:
-                    correct_pred[CLASSES[label]] += 1
-                total_pred[CLASSES[label]] += 1
+                nb_labels_predictions[label][prediction] += 1
 
     # Print accuracy result
-    print(f'Accuracy of the network on the {len(test_loader)} test images: {correct / total:.2%}')
-    for classname, correct_count in correct_pred.items():
-        print(f'\t- {classname:5s} -> {correct_count / total_pred[classname]:.1%}')
+    print(f'Accuracy of the network on the {len(test_loader) * BATCH_SIZE} test images: {correct / total:.2%}')
 
-    # Plot some image with network prediction
+    # Plot results figures
+    plot_confusion_matrix(nb_labels_predictions, class_names=CLASSES)
     plot_dataset_sample(test_loader, CLASSES, network)
 
 
