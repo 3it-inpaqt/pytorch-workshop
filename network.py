@@ -4,6 +4,11 @@ import torch.nn.functional as f
 
 
 class CNN(nn.Module):
+    """
+    Example of simple Convolutional Neural Network (CNN).
+    Take a 32x32 image as input and 10 classes as output.
+    """
+
     def __init__(self):
         super().__init__()
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=6, kernel_size=(5, 5))
@@ -14,7 +19,6 @@ class CNN(nn.Module):
         self.fc3 = nn.Linear(in_features=84, out_features=10)
 
     def forward(self, x):
-        x = self.pool(f.relu(self.conv1(x)))  # Convolution + ReLU + Max Pooling
         x = self.pool(f.relu(self.conv2(x)))  # Convolution + ReLU + Max Pooling
         x = torch.flatten(x, 1)  # Flatten all dimensions except batch
         x = f.relu(self.fc1(x))  # Feed forward + ReLU
